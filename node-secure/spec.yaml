@@ -1,0 +1,55 @@
+schemaVersion: "2"
+kind: mixin
+name: node-secure
+displayName: Node.js
+description: Installs a specific Node.js and npm version from verified official binaries, and applies a hardened default .npmrc
+
+environment:
+  variables:
+    NODE_VERSION: "22.20.0"
+    NPM_VERSION: "11.18.0"
+
+permissions:
+  network:
+    allow:
+      - "nodejs.org"
+      - "*.nodejs.org"
+      - "registry.npmjs.org"
+      - "*.npmjs.org"
+
+setup:
+  install:
+    - user: "0"
+      description: "Install Node.js/npm from verified official binaries, pinned to NODE_VERSION/NPM_VERSION"
+      command: |
+        ARCH="$(uname -m)"
+        case "$ARCH" in
+          x86_64)  NODE_ARCH=x64 ;;
+          aarch64) NODE_ARCH=arm64 ;;
+          *) echo "node-secure: unsupported architecture: $ARCH" >&2; exit 1 ;;
+        esac
+
+        # The base image ships a distro Node/npm (Debian layout: real /usr/bin/node binary, /usr/bin/npm symlinked into /usr/share/nodejs/).
+        # Remove it outright rather than relying on /usr/local/bin winning on PATH
+        if command -v apt-get >/dev/null 2>&1; then
+          DEBIAN_FRONTEND=noninteractive apt-get remove -y nodejs npm >/dev/null 2>&1 || true
+        fi
+        rm -f /usr/bin/node /usr/bin/npm /usr/bin/npx
+        rm -rf /usr/share/nodejs /usr/lib/node_modules
+
+        DIST="node-v${NODE_VERSION}-linux-${NODE_ARCH}"
+        WORKDIR="$(mktemp -d)"
+        cd "$WORKDIR"
+
+        curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/${DIST}.tar.gz"
+        curl -fsSLO "https://nodejs.org/dist/v${NODE_VERSION}/SHASUMS256.txt"
+
+        grep " ${DIST}.tar.gz\$" SHASUMS256.txt > checksum.txt
+        test -s checksum.txt
+        sha256sum -c checksum.txt
+
+        tar -xzf "${DIST}.tar.gz" -C /usr/local --strip-components=1
+        cd /
+        rm -rf "$WORKDIR"
+
+        npm install -g "npm@${NPM_VERSION}"
