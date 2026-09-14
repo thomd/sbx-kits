@@ -1,0 +1,28 @@
+schemaVersion: "2"
+kind: mixin
+name: maven
+displayName: Maven
+description: Apache Maven build tool, with network access to Maven Central
+
+permissions:
+  network:
+    allow:
+      # apt needs these just to install the maven package itself. The
+      # base image is Ubuntu (not Debian) and uses the ports.ubuntu.com
+      # mirror (arm64) rather than archive.ubuntu.com (amd64) — if you
+      # run this on an x86_64 host, add archive.ubuntu.com and
+      # security.ubuntu.com instead/as well.
+      - ports.ubuntu.com
+      - "*.ports.ubuntu.com"
+      - download.docker.com
+      # Maven Central, needed at build time whenever the agent runs
+      # mvn — not for installing Maven itself.
+      - repo.maven.apache.org
+      - repo1.maven.org
+      - "*.maven.org"
+
+setup:
+  install:
+    - command: "apt-get update && apt-get install -y --no-install-recommends maven && rm -rf /var/lib/apt/lists/*"
+      user: "0"
+      description: Install Maven via apt
